@@ -103,4 +103,3 @@ dependencies:
     - pywavelets==1.1.1
     - scikit-image==0.17.2
     - tifffile==2020.9.3
-prefix: /home/jeevan/anaconda3/envs/puresnet
