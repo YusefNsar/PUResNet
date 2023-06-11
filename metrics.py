@@ -1,5 +1,7 @@
 import numpy as np
 from openbabel import pybel
+import openbabel as ob
+import math
 
 class BindingPocket:
     def __init__(self, occupied_cells):
@@ -89,3 +91,33 @@ def get_PLI(lig,pkt,resolution = 1):
     ligand=BindingPocket(lig_coords)
     pocket=BindingPocket(pkt_coords)
     return intersection_over_lig(ligand,pocket,resolution)
+
+def get_DCC(lig,pkt):
+    lig_coords=coordinates(lig)
+    pkt_coords=coordinates(pkt)
+    center_lig=[0]*3
+    center_pkt=[0]*3
+    for i in lig_coords:
+        center_lig[0]+=i[0]
+        center_lig[1]+=i[1]
+        center_lig[2]+=i[2]
+    center_lig[0]/=len(lig_coords)
+    center_lig[1]/=len(lig_coords)
+    center_lig[2]/=len(lig_coords)
+
+    for i in pkt_coords:
+        center_pkt[0]+=i[0]
+        center_pkt[1]+=i[1]
+        center_pkt[2]+=i[2]
+    center_pkt[0]/=len(pkt_coords)
+    center_pkt[1]/=len(pkt_coords)
+    center_pkt[2]/=len(pkt_coords)
+
+    dist=math.pow(2,(center_pkt[0]-center_lig[0]))+math.pow(2,(center_pkt[1]-center_lig[1]))+math.pow(2,(center_pkt[2]-center_lig[2]))
+    dist=math.sqrt(dist)
+
+    return dist
+
+
+print(coordinates("data/site.mol2"))
+print(get_DCC("data/site.mol2","data/site.mol2"))
