@@ -2,6 +2,7 @@ from openbabel import pybel
 import numpy as np
 from typing import List, Dict
 
+
 class FeatureExtractor:
     def __init__(self) -> None:
         self.FEATURE_NAMES: List[str] = []
@@ -22,14 +23,16 @@ class FeatureExtractor:
         self.__PATTERNS: List[str] = []
         """All possible Patterns of self.SMARTS"""
 
-        self.setup_atoms_codes()
-        self.setup_named_props()
-        self.setup_smarts()
+        self._setup_atoms_codes()
+        self._setup_named_props()
+        self._setup_smarts()
 
     def get_feature(self, protein_mol: pybel.Molecule):
         if not isinstance(protein_mol, pybel.Molecule):
-            raise TypeError('mol should be a pybel.Molecule object, got %s '
-                            'instead' % type(protein_mol))
+            raise TypeError(
+                "mol should be a pybel.Molecule object, got %s "
+                "instead" % type(protein_mol)
+            )
 
         coords = []
         features = []
@@ -41,38 +44,44 @@ class FeatureExtractor:
                 heavy_atoms.append(i)
                 coords.append(atom.coords)
 
-                features.append(np.concatenate((
-                    self.encode_num(atom.atomicnum),
-                    [atom.__getattribute__(prop) for prop in self.NAMED_PROPS],
-                )))
+                atom_bin_code = self._encode_num(atom.atomicnum)
+                important_properties = [
+                    atom.__getattribute__(prop) for prop in self.NAMED_PROPS
+                ]
+
+                atom_features = np.concatenate((atom_bin_code, important_properties))
+                features.append(atom_features)
 
         coords = np.array(coords, dtype=np.float32)
         features = np.array(features, dtype=np.float32)
 
-        features = np.hstack([features,
-                              self.find_smarts(protein_mol)[heavy_atoms]])
+        features = np.hstack([features, self._find_smarts(protein_mol)[heavy_atoms]])
 
         if np.isnan(features).any():
-            raise RuntimeError('Got NaN when calculating features')
+            raise RuntimeError("Got NaN when calculating features")
 
         return coords, features
 
-    def setup_atoms_codes(self):
-        metals_atoms_codes = ([3, 4, 11, 12, 13] + list(range(19, 32))
-                    + list(range(37, 51)) + list(range(55, 84))
-                    + list(range(87, 104)))
+    def _setup_atoms_codes(self):
+        metals_atoms_codes = (
+            [3, 4, 11, 12, 13]
+            + list(range(19, 32))
+            + list(range(37, 51))
+            + list(range(55, 84))
+            + list(range(87, 104))
+        )
 
         # List of tuples (atomic_num, class_name) with atom types to encode.
         atoms_codes_classes = [
-            (5, 'B'),
-            (6, 'C'),
-            (7, 'N'),
-            (8, 'O'),
-            (15, 'P'),
-            (16, 'S'),
-            (34, 'Se'),
-            ([9, 17, 35, 53], 'halogen'),
-            (metals_atoms_codes, 'metal')
+            (5, "B"),
+            (6, "C"),
+            (7, "N"),
+            (8, "O"),
+            (15, "P"),
+            (16, "S"),
+            (34, "Se"),
+            ([9, 17, 35, 53], "halogen"),
+            (metals_atoms_codes, "metal"),
         ]
 
         for index, (atom_codes, class_name) in enumerate(atoms_codes_classes):
@@ -84,35 +93,35 @@ class FeatureExtractor:
             self.FEATURE_NAMES.append(class_name)
 
         self.NUM_ATOM_CLASSES = len(atoms_codes_classes)
-    
-    def setup_named_props(self):
+
+    def _setup_named_props(self):
         # pybel.Atom properties to save
-        self.NAMED_PROPS = ['hyb', 'heavydegree', 'heterodegree',
-                            'partialcharge']
+        self.NAMED_PROPS = ["hyb", "heavydegree", "heterodegree", "partialcharge"]
         self.FEATURE_NAMES += self.NAMED_PROPS
 
-    def setup_smarts(self):
+    def _setup_smarts(self):
         # SMARTS definition for other properties
         self.SMARTS = [
-            '[#6+0!$(*~[#7,#8,F]),SH0+0v2,s+0,S^3,Cl+0,Br+0,I+0]',
-            '[a]',
-            '[!$([#1,#6,F,Cl,Br,I,o,s,nX3,#7v5,#15v5,#16v4,#16v6,*+1,*+2,*+3])]',
-            '[!$([#6,H0,-,-2,-3]),$([!H0;#7,#8,#9])]',
-            '[r]'
+            "[#6+0!$(*~[#7,#8,F]),SH0+0v2,s+0,S^3,Cl+0,Br+0,I+0]",
+            "[a]",
+            "[!$([#1,#6,F,Cl,Br,I,o,s,nX3,#7v5,#15v5,#16v4,#16v6,*+1,*+2,*+3])]",
+            "[!$([#6,H0,-,-2,-3]),$([!H0;#7,#8,#9])]",
+            "[r]",
         ]
-        smarts_labels = ['hydrophobic', 'aromatic', 'acceptor', 'donor', 'ring']
- 
+        smarts_labels = ["hydrophobic", "aromatic", "acceptor", "donor", "ring"]
+
         # Compile patterns
         self.__PATTERNS = []
         for smarts in self.SMARTS:
             self.__PATTERNS.append(pybel.Smarts(smarts))
         self.FEATURE_NAMES += smarts_labels
 
-    def encode_num(self, atomic_num):
+    def _encode_num(self, atomic_num):
         """One-Hot encoding for atoms types"""
         if not isinstance(atomic_num, int):
-            raise TypeError('Atomic number must be int, %s was given'
-                            % type(atomic_num))
+            raise TypeError(
+                "Atomic number must be int, %s was given" % type(atomic_num)
+            )
 
         encoding = np.zeros(self.NUM_ATOM_CLASSES)
         try:
@@ -120,18 +129,20 @@ class FeatureExtractor:
         except:
             pass
         return encoding
-    
-    def find_smarts(self, molecule):
+
+    def _find_smarts(self, molecule):
         """Find atoms that match SMARTS patterns."""
 
         if not isinstance(molecule, pybel.Molecule):
-            raise TypeError('molecule must be pybel.Molecule object, %s was given'
-                            % type(molecule))
+            raise TypeError(
+                "molecule must be pybel.Molecule object, %s was given" % type(molecule)
+            )
 
         features = np.zeros((len(molecule.atoms), len(self.__PATTERNS)))
 
-        for (pattern_id, pattern) in enumerate(self.__PATTERNS):
-            atoms_with_prop = np.array(list(*zip(*pattern.findall(molecule))),
-                                       dtype=int) - 1
+        for pattern_id, pattern in enumerate(self.__PATTERNS):
+            atoms_with_prop = (
+                np.array(list(*zip(*pattern.findall(molecule))), dtype=int) - 1
+            )
             features[atoms_with_prop, pattern_id] = 1.0
         return features
