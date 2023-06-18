@@ -1,6 +1,7 @@
 from openbabel import pybel
 import numpy as np
-from typing import List, Dict
+from numpy import ndarray
+from typing import Any, List, Dict, Tuple
 
 
 class FeatureExtractor:
@@ -27,7 +28,7 @@ class FeatureExtractor:
         self._setup_named_props()
         self._setup_smarts()
 
-    def get_feature(self, protein_mol: pybel.Molecule):
+    def get_feature(self, protein_mol: pybel.Molecule) -> Tuple[ndarray, ndarray]:
         if not isinstance(protein_mol, pybel.Molecule):
             raise TypeError(
                 "mol should be a pybel.Molecule object, got %s "
@@ -52,11 +53,25 @@ class FeatureExtractor:
                 atom_features = np.concatenate((atom_bin_code, important_properties))
                 features.append(atom_features)
 
-        coords = np.array(coords, dtype=np.float32)
-        features = np.array(features, dtype=np.float32)
+        try:
+            coords = np.asarray(coords, dtype=np.float)
+
+            c_shape = coords.shape
+            if len(c_shape) != 2 or c_shape[1] != 3:
+                raise ValueError()
+        except ValueError:
+            raise ValueError("coords must be an array of floats of shape (N, 3)")
+
+        try:
+            features = np.asarray(features, dtype=np.float)
+
+            f_shape = features.shape
+            if len(f_shape) != 2 or f_shape[0] != len(coords):
+                raise ValueError()
+        except ValueError:
+            raise ValueError("features must be an array of floats of shape (N, F)")
 
         features = np.hstack([features, self._find_smarts(protein_mol)[heavy_atoms]])
-
         if np.isnan(features).any():
             raise RuntimeError("Got NaN when calculating features")
 
@@ -130,7 +145,7 @@ class FeatureExtractor:
             pass
         return encoding
 
-    def _find_smarts(self, molecule):
+    def _find_smarts(self, molecule) -> ndarray:
         """Find atoms that match SMARTS patterns."""
 
         if not isinstance(molecule, pybel.Molecule):
