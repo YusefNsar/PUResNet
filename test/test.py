@@ -13,6 +13,7 @@ sys.path.append("/home/yusef/Development/FCI/PUResNet")
 
 # from utils.feature_extractor import FeatureExtractor
 from model.density_transformer import DensityTransformer
+from model.PUResNet import PUResNet
 
 
 def make_output_folder(output_folder_path, input_folder_path):
@@ -33,44 +34,14 @@ mol = next(pybel.readfile("mol2", "test/1a2n_1/protein.mol2"))
 # print(fe.get_feature(mol)[1][0])
 # print(fe.FEATURE_NAMES)
 
-print(mol.atoms[0].coords)
-ogxs = []
-ogys = []
-ogzs = []
 
-for atom in mol.atoms:
-    x, y, z = atom.coords
-    ogxs.append(x)
-    ogys.append(y)
-    ogzs.append(z)
-
-fig = plt.figure(figsize=(8, 6))
-ax = fig.add_subplot(111, projection="3d")
-
-ax.scatter(ogxs, ogys, ogzs, s=50, alpha=0.6, edgecolors="w")
-
-ax.set_xlabel("X")
-ax.set_ylabel("Y")
-ax.set_zlabel("Z")
-
-plt.show()
-
-exit()
-
-dt = DensityTransformer()
+dt = DensityTransformer(max_dist=35.0, scale=0.5)
 grid = dt.setMol(mol).transform()
-# print(grid)
 
-fig = plt.figure(figsize=(8, 6))
-ax = fig.add_subplot(111, projection="3d")
-
-xs = dt.coords[:, 0]
-ys = dt.coords[:, 1]
-zs = dt.coords[:, 2]
-ax.scatter(xs, ys, zs, s=50, alpha=0.6, edgecolors="w")
-
-ax.set_xlabel("X")
-ax.set_ylabel("Y")
-ax.set_zlabel("Z")
-
-plt.show()
+d = dt.box_size
+print(d)
+f = len(dt.fe.FEATURE_NAMES)
+model = PUResNet(d, f)
+model.summary()
+x = model.predict(grid)
+print(x.shape, x)
