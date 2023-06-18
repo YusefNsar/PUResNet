@@ -1,2 +1,2 @@
 class PUResNet:
-    
+    pass
