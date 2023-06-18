@@ -5,6 +5,7 @@ from math import ceil
 from openbabel import pybel
 from numpy import ndarray
 from utils.feature_extractor import FeatureExtractor
+from typing import Union
 
 
 class DensityTransformer:
@@ -13,27 +14,29 @@ class DensityTransformer:
     so that it can be used as model input. X[Y[Z[AtomsFeatures[]]]]
     """
 
-    def __init__(self, max_dist: float = 10.0, scale: float = 1.0) -> None:
+    def __init__(
+        self, max_dist: Union[float, int] = 10.0, scale: Union[float, int] = 1.0
+    ) -> None:
         # validate arguments
         if scale is None:
             raise ValueError("scale must be set to make predictions")
-        if not isinstance(scale, float):
-            raise TypeError("scale must be float")
+        if not isinstance(scale, (float, int)):
+            raise TypeError("scale must be number")
         if scale <= 0:
             raise ValueError("scale must be positive")
 
-        if not isinstance(max_dist, float):
-            raise TypeError("max_dist must be float")
+        if not isinstance(max_dist, (float, int)):
+            raise TypeError("max_dist must be number")
         if max_dist <= 0:
             raise ValueError("max_dist must be positive")
 
         # initialize attributes
-        self.max_dist = max_dist
+        self.max_dist = float(max_dist)
         """
         Maximum distance (in Angstroms) between atom and box center. Resulting box has
         size of 2*`max_dist`+1 Angstroms and atoms that are too far away are not included.
         """
-        self.scale = scale
+        self.scale = float(scale)
         """Make atoms bigger (> 1) or smaller (< 1) inside the grid."""
         self.resolution = 1.0 / self.scale
         """Resolution of a grid (in Angstroms)."""
@@ -97,7 +100,8 @@ class DensityTransformer:
         pass
 
     def _insertInFixed3DGrid(self) -> ndarray:
-        """Merge atom coordinates and features both represented as 2D arrays into one
+        """
+        Merge atom coordinates and features both represented as 2D arrays into one
         fixed-sized 3D box.
 
         Returns
