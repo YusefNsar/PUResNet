@@ -145,6 +145,9 @@ class DensityTransformer:
         ----------
         grid_labeled_pockets: ndarray
             3D grid with labeled predicted pockets
+
+        pockets_num: int
+            number of predicted pockets
         """
 
         if len(grid_probablity_map) != 1:
@@ -176,5 +179,6 @@ class DensityTransformer:
             if pocket_final_size < min_size:
                 # pocket size is very small so exclude those atoms from being site atoms
                 grid_labeled_pockets[np.where(grid_pocket)] = 0
+                pockets_num -= 1
 
-        return grid_labeled_pockets
+        return grid_labeled_pockets, pockets_num
