@@ -1,6 +1,7 @@
-from typing import Tuple
+from skimage.segmentation import clear_border
+from skimage.morphology import closing
+from skimage.measure import label
 import numpy as np
-from numpy import ndarray
 from math import ceil
 from openbabel import pybel
 from numpy import ndarray
@@ -125,3 +126,55 @@ class DensityTransformer:
             grid[0, x, y, z] += f
 
         return grid
+
+    def _segment_atoms(
+        self, grid_probablity_map: ndarray, threshold: int = 0.5, min_size: int = 50
+    ):
+        """
+        Extract predicted pockets from the probablity map and return a 3D grid with labeled pockets.
+
+        Parameters
+        ----------
+
+        threshold: int
+            Atoms are considered sites if thier probablity was higher than threshold.
+        min_size: int
+            Predicted pockets with size smaller than min_size will be excluded
+
+        Returns
+        ----------
+        grid_labeled_pockets: ndarray
+            3D grid with labeled predicted pockets
+        """
+
+        if len(grid_probablity_map) != 1:
+            raise ValueError("Segmentation of more than one molecule is not supported")
+
+        # turn every atom to 1 (site atom) or 0 (not site atom) based on it's probability
+        grid_sites = (grid_probablity_map[0] > threshold).any(axis=-1)
+
+        # merge close site atoms
+        grid_sites = closing(grid_sites)
+
+        # exclude most site atoms that are on grid edges/border
+        grid_sites = clear_border(grid_sites)
+
+        # label every pocket of connected site atoms in grid and get how many pockets were there
+        grid_labeled_pockets, pockets_num = label(grid_sites, return_num=True)
+
+        # voxel_size represents how many atoms were squashed into one when we scaled grid
+        voxel_size = (1 / self.scale) ** 3
+
+        for pocket_label in range(1, pockets_num + 1):
+            grid_pocket = grid_labeled_pockets == pocket_label
+
+            scaled_pocket_size = grid_pocket.sum()
+
+            # get number of atoms after reversing scale
+            pocket_final_size = scaled_pocket_size * voxel_size
+
+            if pocket_final_size < min_size:
+                # pocket size is very small so exclude those atoms from being site atoms
+                grid_labeled_pockets[np.where(grid_pocket)] = 0
+
+        return grid_labeled_pockets
