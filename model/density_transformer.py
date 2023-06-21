@@ -3,10 +3,10 @@ from skimage.morphology import closing
 from skimage.measure import label
 import numpy as np
 from math import ceil
-from openbabel import pybel
+from openbabel import pybel, openbabel
 from numpy import ndarray
 from utils.feature_extractor import FeatureExtractor
-from typing import Union
+from typing import List, Union
 
 
 class DensityTransformer:
@@ -53,6 +53,8 @@ class DensityTransformer:
         self.features: ndarray = None
         self.centroid: ndarray = None
         self.origin: ndarray = None
+        self.grid_labeled_pockets: ndarray = None
+        self.pockets_num: int = None
 
         pass
 
@@ -69,6 +71,8 @@ class DensityTransformer:
         self.features = prot_features
         self.centroid = None
         self.origin = None
+        self.grid_labeled_pockets = None
+        self.pockets_num = None
 
         return self
 
@@ -94,7 +98,7 @@ class DensityTransformer:
         # converts data to nearest integers
         grid_coords = grid_coords.round().astype(int)
 
-        # crop and return non cropped atoms coords and features only
+        # crop and return in box not cropped atoms coords and features only
         in_box = ((grid_coords >= 0) & (grid_coords < self.box_size)).all(axis=1)
         self.coords, self.features = grid_coords[in_box], self.features[in_box]
 
@@ -127,34 +131,37 @@ class DensityTransformer:
 
         return grid
 
-    def _segment_atoms(
-        self, grid_probablity_map: ndarray, threshold: int = 0.5, min_size: int = 50
+    def segment_grid_to_pockets(
+        self,
+        grid_probability_map: ndarray,
+        probability_threshold: int = 0.5,
+        min_pocket_size: int = 50,
     ):
         """
-        Extract predicted pockets from the probablity map and return a 3D grid with labeled pockets.
+        Extract predicted pockets from the probability map and saves a 3D grid with labeled pockets.
 
         Parameters
         ----------
 
-        threshold: int
-            Atoms are considered sites if thier probablity was higher than threshold.
-        min_size: int
-            Predicted pockets with size smaller than min_size will be excluded
+        grid_probability_map: ndarray
+            Probability map we get from the model.
+        probability_threshold: int
+            Atoms are considered sites if thier probability was higher than threshold.
+        min_pocket_size: int
+            Predicted pockets with size smaller than min_size will be excluded.
 
         Returns
         ----------
-        grid_labeled_pockets: ndarray
-            3D grid with labeled predicted pockets
-
-        pockets_num: int
-            number of predicted pockets
+        self: DensityTransformer
+            Density Transformer object after saving 3D grid with labeled predicted pockets in
+            grid_labeled_pockets and pockets number.
         """
 
-        if len(grid_probablity_map) != 1:
+        if len(grid_probability_map) != 1:
             raise ValueError("Segmentation of more than one molecule is not supported")
 
         # turn every atom to 1 (site atom) or 0 (not site atom) based on it's probability
-        grid_sites = (grid_probablity_map[0] > threshold).any(axis=-1)
+        grid_sites = (grid_probability_map[0] > probability_threshold).any(axis=-1)
 
         # merge close site atoms
         grid_sites = closing(grid_sites)
@@ -170,15 +177,50 @@ class DensityTransformer:
 
         for pocket_label in range(1, pockets_num + 1):
             grid_pocket = grid_labeled_pockets == pocket_label
-
             scaled_pocket_size = grid_pocket.sum()
 
             # get number of atoms after reversing scale
             pocket_final_size = scaled_pocket_size * voxel_size
 
-            if pocket_final_size < min_size:
+            if pocket_final_size < min_pocket_size:
                 # pocket size is very small so exclude those atoms from being site atoms
                 grid_labeled_pockets[np.where(grid_pocket)] = 0
                 pockets_num -= 1
 
-        return grid_labeled_pockets, pockets_num
+        self.grid_labeled_pockets = grid_labeled_pockets
+        self.pockets_num = pockets_num
+
+        return self
+
+    def get_pockets_mols(self) -> List[pybel.Molecule]:
+        """
+        Extract labeled pockets from grid and save them as molecules.
+
+        Returns
+        ----------
+        pockets: List[pybel.Molecule]
+            Pybel molecules representing predicted pockets.
+        """
+
+        pockets = []
+
+        for pocket_label in range(1, self.pockets_num + 1):
+            pocket_atoms_coords = np.argwhere(
+                self.grid_labeled_pockets == pocket_label
+            ).astype("float32")
+
+            # reverse transformations made to molecule
+            pocket_atoms_coords *= self.step
+            pocket_atoms_coords += self.origin
+
+            # save pocket atoms atom by atom as a OBMol molecule
+            mol = openbabel.OBMol()
+            for x, y, z in pocket_atoms_coords:
+                a = mol.NewAtom()
+                a.SetVector(float(x), float(y), float(z))
+
+            # convert to pybel molecule and save
+            p_mol = pybel.Molecule(mol)
+            pockets.append(p_mol)
+
+        return pockets
