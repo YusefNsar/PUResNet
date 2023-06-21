@@ -28,34 +28,34 @@ class PUResNet(Model):
         inputs = Input((d, d, d, f), name="input")
 
         # encoder
-        conv1 = self.conv_block(inputs, f, 2, (1, 1, 1))
-        iden1_E = self.identity_block(conv1, f, 2)
+        conv1 = self.conv_block(inputs, f, 1, (1, 1, 1))
+        iden1_E = self.identity_block(conv1, f, 1)
 
-        conv2 = self.conv_block(iden1_E, f * 2, 4, (2, 2, 2))
-        iden2_E = self.identity_block(conv2, f * 2, 4)
+        conv2 = self.conv_block(iden1_E, f * 2, 2, (2, 2, 2))
+        iden2_E = self.identity_block(conv2, f * 2, 2)
 
-        conv3 = self.conv_block(iden2_E, f * 4, 5, (2, 2, 2))
-        iden3_E = self.identity_block(conv3, f * 4, 5)
+        conv3 = self.conv_block(iden2_E, f * 4, 3, (2, 2, 2))
+        iden3_E = self.identity_block(conv3, f * 4, 3)
 
-        conv4 = self.conv_block(iden3_E, f * 8, 6, (3, 3, 3))
-        iden4_E = self.identity_block(conv4, f * 8, 6)
+        conv4 = self.conv_block(iden3_E, f * 8, 4, (3, 3, 3))
+        iden4_E = self.identity_block(conv4, f * 8, 4)
 
         # bridge
-        conv5 = self.conv_block(iden4_E, f * 16, 7, (3, 3, 3))
-        iden5_B = self.identity_block(conv5, f * 16, 7)
+        conv5 = self.conv_block(iden4_E, f * 16, 5, (3, 3, 3))
+        iden5_B = self.identity_block(conv5, f * 16, 5, is_bridge=True)
 
         # decoder
-        up4 = self.up_conv_block(iden5_B, f * 16, 8, (3, 3, 3))
-        iden4_D = self.identity_block(up4, f * 16, 8, iden4_E)
+        up4 = self.up_conv_block(iden5_B, f * 16, 4, (3, 3, 3))
+        iden4_D = self.identity_block(up4, f * 16, 4, iden4_E)
 
-        up3 = self.up_conv_block(iden4_D, f * 8, 9, (3, 3, 3))
-        iden3_D = self.identity_block(up3, f * 8, 9, iden3_E)
+        up3 = self.up_conv_block(iden4_D, f * 8, 3, (3, 3, 3))
+        iden3_D = self.identity_block(up3, f * 8, 3, iden3_E)
 
-        up2 = self.up_conv_block(iden3_D, f * 4, 10, (2, 2, 2))
-        iden2_D = self.identity_block(up2, f * 4, 10, iden2_E)
+        up2 = self.up_conv_block(iden3_D, f * 4, 2, (2, 2, 2))
+        iden2_D = self.identity_block(up2, f * 4, 2, iden2_E)
 
-        up1 = self.up_conv_block(iden2_D, f * 2, 11, (2, 2, 2))
-        iden1_D = self.identity_block(up1, f * 2, 11, iden1_E)
+        up1 = self.up_conv_block(iden2_D, f * 2, 1, (2, 2, 2))
+        iden1_D = self.identity_block(up1, f * 2, 1, iden1_E)
 
         # output layer
         outputs = Convolution3D(
@@ -73,6 +73,7 @@ class PUResNet(Model):
         filters: int,
         level: int,
         encoder_tensor: Union[KerasTensor, None] = None,
+        is_bridge: bool = False,
     ) -> KerasTensor:
         """
         Make a convolution block of 3 convolutional layers with 1 batch normalization and 1 activation layers
@@ -88,8 +89,9 @@ class PUResNet(Model):
         is_channels_last = K.image_data_format() == "channels_last"
         bn_axis = 4 if is_channels_last else 1
 
-        conv_name_base = f"IB_L{level}_Conv_"
-        bn_name_base = f"IB_L{level}_BN_"
+        block_type = "B" if is_bridge else ("D" if encoder_tensor == None else "E")
+        conv_name_base = f"IB{block_type}_L{level}_Conv_"
+        bn_name_base = f"IB{block_type}_L{level}_BN_"
 
         # conv 1
         x = Convolution3D(
@@ -127,7 +129,10 @@ class PUResNet(Model):
 
         # concatenation layer skip connection between encoder and decoder
         if encoder_tensor != None:
-            x = Concatenate(axis=4)([x, encoder_tensor])
+            bridge_identity_block = self.identity_block(
+                encoder_tensor, filters // 2, level, is_bridge=True
+            )
+            x = Concatenate(axis=4)([x, bridge_identity_block])
 
         return x
 
@@ -145,6 +150,7 @@ class PUResNet(Model):
         The use of residual blocks helps in building a deeper network without worrying about the problem of vanishing
         gradient or exploding gradients. It also helps in easy training of the network.
         """
+
         is_channels_last = K.image_data_format() == "channels_last"
         bn_axis = 4 if is_channels_last else 1
 
@@ -255,17 +261,17 @@ class PUResNet(Model):
         x = BatchNormalization(axis=bn_axis, name=bn_name_base + "C")(x)
 
         # residual connection
-        shortcut = UpSampling3D(size, name=up_conv_name_base + "R")(input_tensor)
-        shortcut = Convolution3D(
+        residue = UpSampling3D(size, name=up_conv_name_base + "R")(input_tensor)
+        residue = Convolution3D(
             filters,
             kernel_size=1,
             strides=strides,
             padding=padding,
             name=conv_name_base + "R",
             kernel_regularizer=l2(1e-5),
-        )(shortcut)
-        shortcut = BatchNormalization(axis=bn_axis, name=bn_name_base + "R")(shortcut)
-        x = Add()([x, shortcut])
+        )(residue)
+        residue = BatchNormalization(axis=bn_axis, name=bn_name_base + "R")(residue)
+        x = Add()([x, residue])
         x = Activation("relu")(x)
 
         return x
