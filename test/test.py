@@ -34,7 +34,7 @@ mol = next(pybel.readfile("mol2", "test/1a2n_1/protein.mol2"))
 # model = PUResNet(d, f)
 # model.load_weights("/home/yusef/Development/FCI/PUResNet/whole_trained_model1.hdf")
 # model.summary()
-# x = model.predict(grid)
+# x = model.predict(np.array([grid]))
 # print(x.sum(), x)
 
 # with open("prediction.pickle", "wb") as f:

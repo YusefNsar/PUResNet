@@ -117,7 +117,7 @@ class Mol3DGrid:
         """
 
         num_features = len(self.fe.FEATURE_NAMES)
-        grid_shape = (1, self.box_size, self.box_size, self.box_size, num_features)
+        grid_shape = (self.box_size, self.box_size, self.box_size, num_features)
 
         # init empty grid
         grid = np.zeros(
@@ -127,7 +127,7 @@ class Mol3DGrid:
 
         # put atoms features in it's transformed coords
         for (x, y, z), f in zip(self.coords, self.features):
-            grid[0, x, y, z] += f
+            grid[x, y, z] += f
 
         return grid
 

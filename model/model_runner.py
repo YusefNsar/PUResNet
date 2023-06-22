@@ -26,7 +26,7 @@ class ModelRunner:
         )
 
         # predict and extract predicted pockets
-        x = model.predict(grid)
+        x = model.predict(np.array([grid]))
         pockets = mol_grid.segment_grid_to_pockets(x).get_pockets_mols()
 
         return pockets
