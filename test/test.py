@@ -13,7 +13,7 @@ import seaborn as sns
 sys.path.append("/home/yusef/Development/FCI/PUResNet")
 
 # from utils.feature_extractor import FeatureExtractor
-from model.density_transformer import DensityTransformer
+from model.mol_3d_grid import Mol3DGrid
 from model.PUResNet import PUResNet
 
 
@@ -26,11 +26,11 @@ mol = next(pybel.readfile("mol2", "test/1a2n_1/protein.mol2"))
 # print(fe.get_feature(mol)[1][0])
 # print(fe.FEATURE_NAMES)
 
-# dt = DensityTransformer(max_dist=35.0, scale=0.5)
-# grid = dt.setMol(mol).transform()
+# mol_grid = Mol3DGrid(max_dist=35.0, scale=0.5)
+# grid = mol_grid.setMol(mol).transform()
 
-# d = dt.box_size
-# f = len(dt.fe.FEATURE_NAMES)
+# d = mol_grid.box_size
+# f = len(mol_grid.fe.FEATURE_NAMES)
 # model = PUResNet(d, f)
 # model.load_weights("/home/yusef/Development/FCI/PUResNet/whole_trained_model1.hdf")
 # model.summary()
@@ -44,8 +44,8 @@ x = None
 with open("prediction.pickle", "rb") as f:
     x = pickle.load(f)
 
-dt = DensityTransformer(max_dist=35.0, scale=0.5)
-grid = dt.setMol(mol).transform()
+mol_grid = Mol3DGrid(max_dist=35.0, scale=0.5)
+grid = mol_grid.setMol(mol).transform()
 
-pockets = dt.segment_grid_to_pockets(x).get_pockets_mols()
+pockets = mol_grid.segment_grid_to_pockets(x).get_pockets_mols()
 print(pockets, len(pockets[0].atoms))

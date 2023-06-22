@@ -9,7 +9,7 @@ from utils.feature_extractor import FeatureExtractor
 from typing import List, Union
 
 
-class DensityTransformer:
+class Mol3DGrid:
     """
     Transform molecule atoms to 4D array having it's features arrays distributed in 3D space
     so that it can be used as model input. X[Y[Z[AtomsFeatures[]]]]
@@ -152,7 +152,7 @@ class DensityTransformer:
 
         Returns
         ----------
-        self: DensityTransformer
+        self: Mol3DGrid
             Density Transformer object after saving 3D grid with labeled predicted pockets in
             grid_labeled_pockets and pockets number.
         """
@@ -172,7 +172,7 @@ class DensityTransformer:
         # label every pocket of connected site atoms in grid and get how many pockets were there
         grid_labeled_pockets, pockets_num = label(grid_sites, return_num=True)
 
-        # voxel_size represents how many atoms were squashed into one when we scaled grid
+        # voxel for 3D image is like what a pixel is for a 2D image
         voxel_size = (1 / self.scale) ** 3
 
         for pocket_label in range(1, pockets_num + 1):

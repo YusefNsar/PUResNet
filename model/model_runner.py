@@ -1,7 +1,7 @@
 # from feature_extractor import FeatureExtractor
 from typing import List
 from openbabel import pybel
-from model.density_transformer import DensityTransformer
+from model.mol_3d_grid import Mol3DGrid
 from model.PUResNet import PUResNet
 
 
@@ -10,14 +10,14 @@ class ModelRunner:
         pass
 
     def predictBindingSites(self, mol: pybel.Molecule) -> List[pybel.Molecule]:
-        dt = DensityTransformer(max_dist=35.0, scale=0.5)
+        mol_grid = Mol3DGrid(max_dist=35.0, scale=0.5)
 
         # save mol in grid with the required max_dist and scaling
-        grid = dt.setMol(mol).transform()
+        grid = mol_grid.setMol(mol).transform()
 
         # get box size and feature number to determine input shape to model
-        d = dt.box_size
-        f = len(dt.fe.FEATURE_NAMES)
+        d = mol_grid.box_size
+        f = len(mol_grid.fe.FEATURE_NAMES)
         model = PUResNet(d, f)
 
         # load trained weights
@@ -27,6 +27,6 @@ class ModelRunner:
 
         # predict and extract predicted pockets
         x = model.predict(grid)
-        pockets = dt.segment_grid_to_pockets(x).get_pockets_mols()
+        pockets = mol_grid.segment_grid_to_pockets(x).get_pockets_mols()
 
         return pockets
