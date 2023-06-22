@@ -13,7 +13,7 @@ import seaborn as sns
 sys.path.append("/home/yusef/Development/FCI/PUResNet")
 
 # from utils.feature_extractor import FeatureExtractor
-from model.mol_3d_grid import Mol3DGrid
+from utils.mol_3d_grid import Mol3DGrid
 from model.PUResNet import PUResNet
 
 

@@ -5,7 +5,7 @@ sys.path.append("/home/yusef/Development/FCI/PUResNet")
 
 from openbabel import pybel
 import matplotlib.pyplot as plt
-from model.mol_3d_grid import Mol3DGrid
+from utils.mol_3d_grid import Mol3DGrid
 
 mol = next(pybel.readfile("mol2", "test/1a2n_1/protein.mol2"))
 
