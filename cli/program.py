@@ -1,15 +1,9 @@
 import os
-import sys
 from typing import List
 from openbabel import pybel
-import tensorflow as tf
 
 from cli.args_handler import ArgsHandler, Args
 from model.model_runner import ModelRunner
-
-current = os.path.dirname(os.path.realpath(__file__))
-parent = os.path.dirname(current)
-sys.path.append(parent)
 
 
 class Program:
