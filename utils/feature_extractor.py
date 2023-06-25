@@ -1,3 +1,4 @@
+from google.protobuf import proto_builder
 from openbabel import pybel
 import numpy as np
 from numpy import ndarray
@@ -28,6 +29,19 @@ class FeatureExtractor:
         self._setup_named_props()
         self._setup_smarts()
 
+    def get_all_coords(self, mol: pybel.Molecule) -> ndarray:
+        if not isinstance(mol, pybel.Molecule):
+            raise TypeError(
+                "mol should be a pybel.Molecule object, got %s " "instead" % type(mol)
+            )
+
+        coords = []
+
+        for atom in mol:
+            coords.append(atom.coords)
+
+        return coords
+
     def get_feature(self, protein_mol: pybel.Molecule) -> Tuple[ndarray, ndarray]:
         if not isinstance(protein_mol, pybel.Molecule):
             raise TypeError(
@@ -54,7 +68,7 @@ class FeatureExtractor:
                 features.append(atom_features)
 
         try:
-            coords = np.asarray(coords, dtype=np.float)
+            coords = np.asarray(coords, dtype=np.float32)
 
             c_shape = coords.shape
             if len(c_shape) != 2 or c_shape[1] != 3:
@@ -63,7 +77,7 @@ class FeatureExtractor:
             raise ValueError("coords must be an array of floats of shape (N, 3)")
 
         try:
-            features = np.asarray(features, dtype=np.float)
+            features = np.asarray(features, dtype=np.float32)
 
             f_shape = features.shape
             if len(f_shape) != 2 or f_shape[0] != len(coords):

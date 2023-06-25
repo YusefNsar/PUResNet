@@ -36,6 +36,7 @@ conda activate env_name
 conda install -c conda-forge openbabel
 conda install scikit-image
 conda install numpy
+conda install h5py
 conda install -c anaconda scipy
 conda install -c conda-forge keras=2.1
 conda install -c conda-forge tensorflow=1.11

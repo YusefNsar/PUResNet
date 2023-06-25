@@ -76,6 +76,16 @@ class Mol3DGrid:
 
         return self
 
+    def setMolAsCoords(self, coords: ndarray, feats: ndarray = None):
+        self.coords = coords
+        self.features = feats
+        self.centroid = None
+        self.origin = None
+        self.grid_labeled_pockets = None
+        self.pockets_num = None
+
+        return self
+
     def transform(self) -> ndarray:
         self._translateToCenter()
         self._scaleAndCrop()
@@ -100,7 +110,8 @@ class Mol3DGrid:
 
         # crop and return in box not cropped atoms coords and features only
         in_box = ((grid_coords >= 0) & (grid_coords < self.box_size)).all(axis=1)
-        self.coords, self.features = grid_coords[in_box], self.features[in_box]
+        self.coords = grid_coords[in_box]
+        self.features = self.features[in_box] if self.features is not None else None
 
         pass
 
@@ -117,7 +128,11 @@ class Mol3DGrid:
         """
 
         num_features = len(self.fe.FEATURE_NAMES)
-        grid_shape = (self.box_size, self.box_size, self.box_size, num_features)
+        grid_shape = (
+            (self.box_size, self.box_size, self.box_size, num_features)
+            if self.features is not None
+            else (self.box_size, self.box_size, self.box_size, 1)
+        )
 
         # init empty grid
         grid = np.zeros(
@@ -126,8 +141,13 @@ class Mol3DGrid:
         )
 
         # put atoms features in it's transformed coords
-        for (x, y, z), f in zip(self.coords, self.features):
-            grid[x, y, z] += f
+        if self.features is not None:
+            for (x, y, z), f in zip(self.coords, self.features):
+                grid[x, y, z] += f
+        else:
+            # put atoms features in it's transformed coords
+            for x, y, z in self.coords:
+                grid[x, y, z, 0] += 1
 
         return grid
 
