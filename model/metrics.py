@@ -2,25 +2,7 @@ import tensorflow as tf
 from tensorflow.keras import backend as K
 
 
-def dcc_distance(y_true, y_pred):
-    y_pred = tf.round(y_pred)
-
-    # Get postives indices
-    yi_true = tf.cast(tf.where(tf.equal(y_true, 1.0)), dtype=tf.float32)
-    yi_pred = tf.cast(tf.where(tf.equal(y_pred, 1.0)), dtype=tf.float32)
-
-    # Compute the center of the true labels
-    yc_true = tf.reduce_mean(yi_true[:, 1:], axis=0)
-    yc_pred = tf.reduce_mean(yi_pred[:, 1:], axis=0)
-
-    # Compute the distance between the centers
-    dist_cc_square = tf.reduce_sum(tf.square(yc_true - yc_pred))
-    dcc_dist = tf.reduce_mean(tf.sqrt(dist_cc_square))
-
-    return dcc_dist
-
-
-def dvo_metric(y_true, y_pred):
+def iou_metric(y_true, y_pred):
     # Reshape the inputs to binary 1D arrays
     y_true = tf.reshape(y_true, [-1])
     y_pred = tf.round(tf.reshape(y_pred, [-1]))
@@ -37,10 +19,10 @@ def dvo_metric(y_true, y_pred):
     intersection = true_positives
     union = all_actual_positives + all_predicted_positives - intersection
 
-    # Compute the DVO score
-    dvo = (intersection + K.epsilon()) / (union + K.epsilon())
+    # Compute the IOU score
+    iou = (intersection + K.epsilon()) / (union + K.epsilon())
 
-    return dvo
+    return iou
 
 
 def dice_loss(y_true, y_pred):
@@ -65,13 +47,6 @@ def dice_loss(y_true, y_pred):
     )
 
     return 1 - dice
-
-
-def success_rate(y_true, y_pred):
-    dcc = dcc_distance(y_true, y_pred)
-
-    dcc_less_than_4 = tf.reduce_mean(tf.cast(dcc < 4, dtype=tf.float32))
-    return dcc_less_than_4
 
 
 def f1_score(y_true, y_pred):
