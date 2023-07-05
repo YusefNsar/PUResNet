@@ -40,6 +40,9 @@ conda install h5py
 conda install -c anaconda scipy
 conda install -c conda-forge keras=2.1
 conda install -c conda-forge tensorflow=1.11
+
+#if you had problem installing some package try with pip
+python ~/miniconda3/envs/gp/lib/python3.6/site-packages/pip install pydot
 </pre>
 2. Prediction
 <pre>
