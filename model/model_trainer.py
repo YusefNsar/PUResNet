@@ -4,15 +4,23 @@ from openbabel import pybel
 import pickle
 import numpy as np
 from sklearn.model_selection import KFold
+import matplotlib.pyplot as plt
+
+# from utils.feature_extractor import FeatureExtractor
+# from utils.mol_3d_grid import Mol3DGrid
+# from model.PUResNet import PUResNet
+# import sys
+# sys.path.append("/home/yusef/development/collage/PUResNet/")
+
 from keras.utils import Sequence
+from keras.optimizers import Nadam
 
-from utils.feature_extractor import FeatureExtractor
-from utils.mol_3d_grid import Mol3DGrid
-from model.PUResNet import PUResNet
-
-# from PUResNet.utils.feature_extractor import FeatureExtractor
-# from PUResNet.utils.mol_3d_grid import Mol3DGrid
-# from PUResNet.model.PUResNet import PUResNet
+from PUResNet.utils.feature_extractor import FeatureExtractor
+from PUResNet.utils.mol_3d_grid import Mol3DGrid
+from PUResNet.model.PUResNet import PUResNet
+from model.ResUNetPP import ResUnetPlusPlus
+from PUResNet.model.metrics import tversky_loss, f1_score, f2_score, iou_metric
+from keras.callbacks import ModelCheckpoint, EarlyStopping
 
 
 class ModelTrainer:
@@ -21,16 +29,18 @@ class ModelTrainer:
         self.mol_grid = Mol3DGrid(max_dist=35.0, scale=0.5)
         d = self.mol_grid.box_size
         f = len(self.mol_grid.fe.FEATURE_NAMES)
-        self.model = PUResNet(d, f)
+        # self.model = PUResNet(d, f)
+        self.model = ResUnetPlusPlus().build_model()
 
         pass
 
     def train_model(self) -> None:
         print("Compiling model...")
         self.model.compile(
-            optimizer="Adam",
-            loss=get_tversky_loss(alpha=0.7),
-            metrics=["acc"],
+            optimizer=Nadam(1e-4),
+            loss=tversky_loss,
+            # metrics=[BinaryIoU(num_classes=2, name='iou_metric')],
+            metrics=[iou_metric],
         )
 
         print("Loading Data...")
@@ -38,9 +48,20 @@ class ModelTrainer:
 
         print("Starting Training...")
         batch_size = 5
-        kf = KFold(n_splits=5, shuffle=True, random_state=42)
+        kf = KFold(n_splits=4, shuffle=True, random_state=42)
+
+        # Define callbacks.
+        checkpoint_cb = ModelCheckpoint(
+            "weights.h5",
+            monitor="val_iou_metric",
+            save_best_only=True,
+            save_weights_only=True,
+        )
+        early_stopping_cb = EarlyStopping(monitor="val_iou_metric", patience=10)
+
         folds_results = []
         folds_evaluations = []
+
         for i, (train_index, test_index) in enumerate(kf.split(self.proteins_data)):
             print(f"Fold #{i+1} => train:{len(train_index)} & test:{len(test_index)}.")
 
@@ -61,8 +82,9 @@ class ModelTrainer:
 
             fold_results = self.model.fit_generator(
                 generator=train_data_generator,
-                epochs=1,
+                epochs=50,
                 validation_data=test_data_generator,
+                callbacks=[checkpoint_cb, early_stopping_cb],
             )
 
             evaluations = self.model.evaluate_generator(generator=test_data_generator)
@@ -73,12 +95,37 @@ class ModelTrainer:
         print("Training is complete.")
 
         print("Saving results")
-        self.model.save_weights("weights/3.h5", overwrite=True)
+        # self.model.save_weights("weights.h5", overwrite=True)
 
         with open(f"folds_results.pickle", "wb") as f:
             pickle.dump(folds_results, f)
         with open(f"folds_evaluations.pickle", "wb") as f:
             pickle.dump(folds_evaluations, f)
+
+        for history, evaluation, fold_i in zip(
+            folds_results, folds_evaluations, range(1, 6)
+        ):
+            plt.plot(history["loss"], label="Training Loss")
+            plt.plot(history["val_loss"], label="Validation Loss")
+
+            # plt.plot(history["acc"], label="Accuracy")
+            # plt.plot(history["val_acc"], label="Val Accuracy")
+
+            # plt.plot(history["f1_score"], label="F1 Score")
+            # plt.plot(history["val_f1_score"], label="F1 Val Score")
+
+            # plt.plot(history["f2_score"], label="F2 Score")
+            # plt.plot(history["val_f2_score"], label="F2 Val Score")
+
+            plt.plot(history["iou_metric"], label="IOU")
+            plt.plot(history["val_iou_metric"], label="Val IOU")
+
+            plt.legend()
+            plt.xlabel("Epoch")
+            plt.ylabel("Loss/Accuracy")
+            plt.title(f"Fold #{fold_i} Training History")
+            plt.savefig(fname=f"fold-{fold_i}")
+            plt.show()
 
         print("Done.")
 
@@ -170,48 +217,6 @@ class ModelTrainer:
 
 import tensorflow as tf
 from keras import backend as K
-
-
-# history = pd.DataFrame(model.history.history)
-# history.to_csv(os.path.join(args.output, 'history.csv'))
-def get_tversky_loss(alpha=0.5, smooth=1e-6):
-    """
-    Tversky loss function for 3D image segmentation model.
-
-    :param alpha: Weight of false positives (float)
-    :param beta: Weight of false negatives (float)
-    :param smooth: Smoothing factor (float)
-    :return: Tversky loss (float)
-    """
-
-    beta = 1 - alpha
-
-    def tversky_loss(y_true, y_pred):
-        """
-        :param y_true: Ground truth segmentation mask (tensor)
-        :param y_pred: Predicted segmentation mask (tensor)
-        """
-
-        # Reshape the inputs to 2D arrays
-        y_true = K.flatten(y_true)
-        y_pred = K.flatten(y_pred)
-
-        y_pred = K.round(y_pred)
-
-        # Calculate true positives, false positives, and false negatives
-        true_positives = K.sum(y_true * y_pred)
-        false_positives = K.sum((1 - y_true) * y_pred)
-        false_negatives = K.sum(y_true * (1 - y_pred))
-
-        # Calculate Tversky index
-        tversky_index = (true_positives + smooth) / (
-            true_positives + alpha * false_positives + beta * false_negatives + smooth
-        )
-
-        # Calculate Tversky loss
-        return 1 - tversky_index
-
-    return tversky_loss
 
 
 class ProteinsGridsGenerator(Sequence):
