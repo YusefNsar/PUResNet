@@ -115,7 +115,6 @@ def tversky_loss(y_true, y_pred, alpha=0.7, beta=0.3):
     # Reshape the inputs to binary 1D arrays
     y_true = tf.reshape(y_true, [-1])
     y_pred = tf.reshape(y_pred, [-1])
-    y_pred = tf.cast(y_pred >= 0.5, tf.float32)
 
     # Calculate true positives, false positives, and false negatives
     true_positives = tf.reduce_sum(y_true * y_pred)

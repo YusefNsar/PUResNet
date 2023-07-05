@@ -5,7 +5,9 @@ data
 output
 scpdb_subset.zip
 BU48.zip
+BU48
 coach.zip
+coach
 M1.jpg
 M2.jpg
 whole_trained_model1.hdf
