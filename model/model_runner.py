@@ -7,7 +7,10 @@ import numpy as np
 
 
 class ModelRunner:
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        weights_file="/home/yusef/Development/FCI/PUResNet/whole_trained_model1.hdf",
+    ) -> None:
         self.mol_grid = Mol3DGrid(max_dist=35.0, scale=0.5)
         d = self.mol_grid.box_size
         f = len(self.mol_grid.fe.FEATURE_NAMES)
@@ -15,16 +18,14 @@ class ModelRunner:
         # get box size and feature number to determine input shape to model
         self.model = PUResNet(d, f)
 
+        # load trained weights
+        self.model.load_weights(weights_file)
+
         pass
 
     def predictBindingSites(self, mol: pybel.Molecule) -> List[pybel.Molecule]:
         # save mol in grid with the required max_dist and scaling
         grid = self.mol_grid.setMol(mol).transform()
-
-        # load trained weights
-        self.model.load_weights(
-            "/home/yusef/Development/FCI/PUResNet/whole_trained_model1.hdf"
-        )
 
         # predict and extract predicted pockets
         x = self.model.predict(np.array([grid]))
