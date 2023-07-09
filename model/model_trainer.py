@@ -4,23 +4,39 @@ from openbabel import pybel
 import pickle
 import numpy as np
 from sklearn.model_selection import KFold
+from keras.utils import Sequence
 import matplotlib.pyplot as plt
 
 # from utils.feature_extractor import FeatureExtractor
 # from utils.mol_3d_grid import Mol3DGrid
 # from model.PUResNet import PUResNet
-# import sys
-# sys.path.append("/home/yusef/development/collage/PUResNet/")
-
-from keras.utils import Sequence
-from keras.optimizers import Nadam
-
+from keras.optimizers import Adam, Nadam
+from tensorflow.keras.optimizers.schedules import ExponentialDecay
+from keras.layers import Flatten
+import tensorflow as tf
 from PUResNet.utils.feature_extractor import FeatureExtractor
 from PUResNet.utils.mol_3d_grid import Mol3DGrid
 from PUResNet.model.PUResNet import PUResNet
 from model.ResUNetPP import ResUnetPlusPlus
 from PUResNet.model.metrics import tversky_loss, f1_score, f2_score, iou_metric
 from keras.callbacks import ModelCheckpoint, EarlyStopping
+
+lr_schedule = ExponentialDecay(
+    initial_learning_rate=1e-4, decay_steps=10000, decay_rate=0.9
+)
+
+
+def dice_coef(y_true, y_pred):
+    y_true_f = Flatten()(y_true)
+    y_pred_f = Flatten()(y_pred)
+    intersection = tf.reduce_sum(y_true_f * y_pred_f)
+    return (2.0 * intersection + 1e-7) / (
+        tf.reduce_sum(y_true_f) + tf.reduce_sum(y_pred_f) + 1e-7
+    )
+
+
+def dice_loss(y_true, y_pred):
+    return 1.0 - dice_coef(y_true, y_pred)
 
 
 class ModelTrainer:
@@ -31,33 +47,37 @@ class ModelTrainer:
         f = len(self.mol_grid.fe.FEATURE_NAMES)
         # self.model = PUResNet(d, f)
         self.model = ResUnetPlusPlus().build_model()
+        self.model.load_weights("/content/weights.h5")
 
         pass
 
     def train_model(self) -> None:
         print("Compiling model...")
         self.model.compile(
-            optimizer=Nadam(1e-4),
+            # optimizer=Adam(learning_rate=lr_schedule),
+            optimizer=Nadam(1e-2),
             loss=tversky_loss,
             # metrics=[BinaryIoU(num_classes=2, name='iou_metric')],
-            metrics=[iou_metric],
+            metrics=["acc", iou_metric],
         )
 
         print("Loading Data...")
         self.load_training_data()
 
         print("Starting Training...")
-        batch_size = 5
-        kf = KFold(n_splits=4, shuffle=True, random_state=42)
+        batch_size = 20
+        kf = KFold(n_splits=4, shuffle=True, random_state=50)
 
         # Define callbacks.
         checkpoint_cb = ModelCheckpoint(
             "weights.h5",
-            monitor="val_iou_metric",
+            monitor="val_loss",
             save_best_only=True,
             save_weights_only=True,
         )
-        early_stopping_cb = EarlyStopping(monitor="val_iou_metric", patience=10)
+        early_stopping_cb = EarlyStopping(
+            monitor="val_loss", patience=5, restore_best_weights=True
+        )
 
         folds_results = []
         folds_evaluations = []
@@ -74,7 +94,7 @@ class ModelTrainer:
                 Xy_test.append(self.proteins_data[i])
 
             train_data_generator = ProteinsGridsGenerator(
-                Xy_train, batch_size, self.mol_grid
+                self.proteins_data, batch_size, self.mol_grid
             )
             test_data_generator = ProteinsGridsGenerator(
                 Xy_test, batch_size, self.mol_grid
@@ -242,9 +262,31 @@ class ProteinsGridsGenerator(Sequence):
             grid = self.mol_grid.setMolAsCoords(coords, feats).transform()
             batch_x.append(grid)
 
+            # fig = plt.figure(figsize=(8, 6))
+            # ax = fig.add_subplot(111, projection="3d")
+            # xs = self.mol_grid.coords[:, 0]
+            # ys = self.mol_grid.coords[:, 1]
+            # zs = self.mol_grid.coords[:, 2]
+            # ax.scatter(xs, ys, zs, s=50, alpha=0.6, edgecolors="w")
+            # ax.set_xlabel("X")
+            # ax.set_ylabel("Y")
+            # ax.set_zlabel("Z")
+            # plt.show()
+
             site_coords = np.asarray(row[1])
             grid = self.mol_grid.setMolAsCoords(site_coords).transform()
             batch_y.append(grid)
+
+            # fig = plt.figure(figsize=(8, 6))
+            # ax = fig.add_subplot(111, projection="3d")
+            # xs = self.mol_grid.coords[:, 0]
+            # ys = self.mol_grid.coords[:, 1]
+            # zs = self.mol_grid.coords[:, 2]
+            # ax.scatter(xs, ys, zs, s=50, alpha=0.6, edgecolors="w")
+            # ax.set_xlabel("X")
+            # ax.set_ylabel("Y")
+            # ax.set_zlabel("Z")
+            # plt.show()
 
         batch_x = np.asarray(batch_x, dtype=np.float32)
         batch_y = np.asarray(batch_y, dtype=np.float32)

@@ -3,6 +3,7 @@ from typing import List
 from openbabel import pybel
 from utils.mol_3d_grid import Mol3DGrid
 from model.PUResNet import PUResNet
+from model.ResUNetPP import ResUnetPlusPlus
 import numpy as np
 
 
@@ -10,13 +11,17 @@ class ModelRunner:
     def __init__(
         self,
         weights_file="/home/yusef/Development/FCI/PUResNet/whole_trained_model1.hdf",
+        plusModel=False,
     ) -> None:
         self.mol_grid = Mol3DGrid(max_dist=35.0, scale=0.5)
         d = self.mol_grid.box_size
         f = len(self.mol_grid.fe.FEATURE_NAMES)
 
         # get box size and feature number to determine input shape to model
-        self.model = PUResNet(d, f)
+        if plusModel:
+            self.model = ResUnetPlusPlus().build_model()
+        else:
+            self.model = PUResNet(d, f)
 
         # load trained weights
         self.model.load_weights(weights_file)
